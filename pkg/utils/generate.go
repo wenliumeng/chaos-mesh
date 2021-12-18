@@ -15,6 +15,7 @@ package utils
 
 import (
 	"fmt"
+	"os"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -108,4 +109,21 @@ func GenerateNNodes(
 		nodes = append(nodes, node)
 	}
 	return nodeObjects, nodes
+}
+
+func PathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+//todo
+func IsDir(path string) bool {
+	file, _ := os.Stat(path)
+	return file.IsDir()
 }

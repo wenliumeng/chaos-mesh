@@ -15,13 +15,20 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os/exec"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/containerd/containerd"
 
 	"github.com/chaos-mesh/chaos-mesh/pkg/mock"
 )
+
+var log = ctrl.Log.WithName("containerd-client")
 
 const (
 	containerdProtocolPrefix = "containerd://"
@@ -50,6 +57,7 @@ func (c ContainerdClient) FormatContainerID(ctx context.Context, containerID str
 
 // GetPidFromContainerID fetches PID according to container id
 func (c ContainerdClient) GetPidFromContainerID(ctx context.Context, containerID string) (uint32, error) {
+	log.Info("GetPidFromContainerID", "ctx", ctx)
 	id, err := c.FormatContainerID(ctx, containerID)
 	if err != nil {
 		return 0, err
@@ -62,7 +70,44 @@ func (c ContainerdClient) GetPidFromContainerID(ctx context.Context, containerID
 	if err != nil {
 		return 0, err
 	}
-	return task.Pid(), nil
+	if ctx.Value("type") == "stress" {
+		log.Info("type=stress", "value", task.Pid())
+		return task.Pid(), nil
+	}
+
+	if pid,err := getpid(int(task.Pid())); err !=nil {
+		return 0, fmt.Errorf("not funnd pid : %s", err.Error())
+	} else {
+		log.Info("GetPidFromContainerID", "return", uint32(pid))
+		return uint32(pid),nil
+	}
+
+	//return task.Pid(), nil
+}
+
+func getpid(pidOri int) (int, error) {
+	var pid []byte
+	var err error
+	var cmd *exec.Cmd
+	cmd = exec.Command("pgrep", "-l", "-P", strconv.Itoa(pidOri))
+	if pid, err = cmd.Output(); err != nil {
+		log.Info("pgrep error ", "pid", pidOri)
+		return pidOri, nil
+	}
+	log.Info("begining step1 ", "cmd", string(pid))
+	if strings.Contains(string(pid), "java") {
+		atoi, _ := strconv.Atoi(strings.Split(string(pid), " ")[0])
+		log.Info("begining step1-1  ", "java-pid", atoi)
+		return atoi,nil
+	} else if string(pid) == "" {
+		log.Info("begining step1-2 Recursion nil")
+		return 0, errors.New("Recursion nil")
+	} else {
+		p := strings.Split(string(pid), " ")[0]
+		atoi, _ := strconv.Atoi(p)
+		log.Info("begining step1-3  ", "other-pid", atoi)
+		return getpid(atoi)
+	}
 }
 
 // ContainerKillByContainerID kills container according to container id

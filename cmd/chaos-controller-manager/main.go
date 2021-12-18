@@ -105,7 +105,7 @@ func main() {
 		Scheme:             scheme,
 		MetricsBindAddress: ccfg.ControllerCfg.MetricsAddr,
 		LeaderElection:     ccfg.ControllerCfg.EnableLeaderElection,
-		Port:               9443,
+		Port:               443,
 	}
 
 	if ccfg.ControllerCfg.ClusterScoped {

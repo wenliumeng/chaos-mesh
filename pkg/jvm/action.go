@@ -89,7 +89,14 @@ func ToSandboxAction(suid string, chaos *v1alpha1.JVMChaos) ([]byte, error) {
 	}
 
 	kv[SUID] = suid
-	kv[ACTION] = fmt.Sprint(chaos.Spec.Action)
+	sprint := fmt.Sprint(chaos.Spec.Action)
+	kv[ACTION] = sprint
+	if sprint == "tce" {
+		kv[ACTION] = "throwCustomException"
+	}
+	if sprint == "oom" {
+		kv[ACTION] = "OutOfMemoryError"
+	}
 	kv[TARGET] = fmt.Sprint(chaos.Spec.Target)
 	return json.Marshal(kv)
 }

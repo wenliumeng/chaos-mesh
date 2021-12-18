@@ -35,6 +35,7 @@ import (
 	"github.com/chaos-mesh/chaos-mesh/pkg/chaosdaemon/crclients"
 	pb "github.com/chaos-mesh/chaos-mesh/pkg/chaosdaemon/pb"
 	grpcUtils "github.com/chaos-mesh/chaos-mesh/pkg/grpc"
+	"github.com/chaos-mesh/chaos-mesh/pkg/utils"
 )
 
 var log = ctrl.Log.WithName("chaos-daemon-server")
@@ -164,6 +165,13 @@ func StartServer(conf *Config, reg RegisterGatherer) error {
 		log.Error(err, "failed to listen grpc address", "grpcBindAddr", grpcBindAddr)
 		return err
 	}
+
+	isDir := utils.IsDir("/var/run/docker.sock")
+	conf.Runtime = "docker"
+	if isDir {
+		conf.Runtime = "containerd"
+	}
+	log.Info("runtime is docker or containerd ","runtime", conf.Runtime)
 
 	grpcServer, err := newGRPCServer(conf.Runtime, reg, conf.tlsConfig)
 	if err != nil {

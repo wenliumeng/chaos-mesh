@@ -33,7 +33,7 @@ const (
 func (s *DaemonServer) SetIptablesChains(ctx context.Context, req *pb.IptablesChainsRequest) (*empty.Empty, error) {
 	log.Info("Set iptables chains", "request", req)
 
-	pid, err := s.crClient.GetPidFromContainerID(ctx, req.ContainerId)
+	pid, err := s.crClient.GetPidFromContainerID(context.WithValue(ctx, "type", "network"), req.ContainerId)
 	if err != nil {
 		log.Error(err, "error while getting PID")
 		return nil, err

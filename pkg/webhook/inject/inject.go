@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/chaos-mesh/chaos-mesh/controllers/metrics"
@@ -111,7 +112,7 @@ func Inject(res *v1beta1.AdmissionRequest, cli client.Client, cfg *config.Config
 
 	annotations := map[string]string{cfg.StatusAnnotationKey(): StatusInjected}
 
-	patchBytes, err := createPatch(&pod, injectionConfig, annotations)
+	patchBytes, err := createPatch(&pod, injectionConfig, annotations, cli)
 	if err != nil {
 		return &v1beta1.AdmissionResponse{
 			Result: &metav1.Status{
@@ -272,12 +273,35 @@ func injectByPodRequired(metadata *metav1.ObjectMeta, cfg *config.Config) (strin
 }
 
 // create mutation patch for resource
-func createPatch(pod *corev1.Pod, inj *config.InjectionConfig, annotations map[string]string) ([]byte, error) {
+func createPatch(pod *corev1.Pod, inj *config.InjectionConfig, annotations map[string]string, cli client.Client) ([]byte, error) {
+	log.Info("----------------------------------------InjectionConfig debug-log----------------------------------------")
+	marshal, _ := json.Marshal(inj)
+	log.Info("InjectionConfig json ", " data ", string(marshal))
+	log.Info("----------------------------------------InjectionConfig debug-log----------------------------------------")
 	var patch []patchOperation
 
 	// make sure any injected containers in our config get the EnvVars and VolumeMounts injected
 	// this mutates inj.Containers with our environment vars
+	log.Info("----------------------------------------createPatch debug-log----------------------------------------")
+	log.Info("createPatch", "len(inj.Environment)", len(inj.Environment))
+	for i := range inj.Environment {
+		log.Info("Environments", " env ", inj.Environment[i].Name+"="+inj.Environment[i].Value)
+	}
+	log.Info("createPatch", "len(inj.Containers)", len(inj.Containers))
+	for i := range inj.Containers {
+		log.Info("Containers", " container ", inj.Containers[i].Name)
+	}
+	log.Info("----------------------------------------createPatch debug-log----------------------------------------")
+
+	log.Info("----------------------------------------mergeEnvVars debug-log----------------------------------------")
 	mutatedInjectedContainers := mergeEnvVars(inj.Environment, inj.Containers)
+	log.Info("mutatedInjectedContainers", "len(mutatedInjectedContainers)", len(mutatedInjectedContainers))
+	for i := range mutatedInjectedContainers {
+		for i2 := range mutatedInjectedContainers[i].Env {
+			log.Info("mutatedInjectedContainers", " container-env ", mutatedInjectedContainers[i].Name, "env", mutatedInjectedContainers[i].Env[i2].Name)
+		}
+	}
+	log.Info("----------------------------------------mergeEnvVars debug-log----------------------------------------")
 	mutatedInjectedContainers = mergeVolumeMounts(inj.VolumeMounts, mutatedInjectedContainers)
 
 	// make sure any injected init containers in our config get the EnvVars and VolumeMounts injected
@@ -286,6 +310,10 @@ func createPatch(pod *corev1.Pod, inj *config.InjectionConfig, annotations map[s
 	mutatedInjectedInitContainers = mergeVolumeMounts(inj.VolumeMounts, mutatedInjectedInitContainers)
 
 	// patch all existing containers with the env vars and volume mounts
+	// 如果没有cm-timefake就新建，把cm挂到inj中
+	injectCMTimeskew(pod, inj, cli)
+	// 把cm挂到container中
+	appendAppRunArgs(pod, inj)
 	patch = append(patch, setVolumeMounts(pod.Spec.Containers, inj.VolumeMounts, "/spec/containers")...)
 	// TODO: fix set env
 	// setEnvironment may not work, because we replace the whole container in `setVolumeMounts`
@@ -293,6 +321,39 @@ func createPatch(pod *corev1.Pod, inj *config.InjectionConfig, annotations map[s
 
 	// patch containers with our injected containers
 	patch = append(patch, addContainers(pod.Spec.Containers, mutatedInjectedContainers, "/spec/containers")...)
+	
+	//process metrics
+	//processContainer := []corev1.Container{
+	//	corev1.Container{
+	//		Name:                     "metrics",
+	//		Image:                    "busybox",
+	//		Command:                  nil,
+	//		Args:                     nil,
+	//		WorkingDir:               "",
+	//		Ports:                    nil,
+	//		EnvFrom:                  nil,
+	//		Env:                      nil,
+	//		Resources:                corev1.ResourceRequirements{},
+	//		VolumeMounts:             nil,
+	//		VolumeDevices:            nil,
+	//		LivenessProbe:            nil,
+	//		ReadinessProbe:           nil,
+	//		StartupProbe:             nil,
+	//		Lifecycle:                nil,
+	//		TerminationMessagePath:   "",
+	//		TerminationMessagePolicy: "",
+	//		ImagePullPolicy:          "Always",
+	//		SecurityContext:          &corev1.SecurityContext{
+	//			Capabilities: &corev1.Capabilities{
+	//				Add: []corev1.Capability{"SYS_PTRACE"},
+	//			},
+	//		},
+	//		Stdin:                    true,
+	//		StdinOnce:                false,
+	//		TTY:                      true,
+	//	},
+	//}
+	//patch = append(patch, addContainers(pod.Spec.Containers, processContainer, "/spec/containers")...)
 
 	// add initContainers, hostAliases and volumes
 	patch = append(patch, addContainers(pod.Spec.InitContainers, mutatedInjectedInitContainers, "/spec/initContainers")...)
@@ -357,6 +418,11 @@ func setEnvironment(target []corev1.Container, addedEnv []corev1.EnvVar) (patch 
 		// for each container in the spec, determine if we want to patch with any env vars
 		first := len(container.Env) == 0
 		for _, add := range addedEnv {
+			//不在main container中注入JAVA_TOOL_OPTIONS，而是追加到APP_RUN_ARGS中
+			//bugfix: main container中执行其他java命令时会拾取JAVA_TOOL_OPTIONS中的参数，再次启动agent，报端口占用
+			if add.Name == "JAVA_TOOL_OPTIONS" {
+				continue
+			}
 			path := fmt.Sprintf("/spec/containers/%d/env", containerIndex)
 			hasKey := false
 			// make sure we dont override any existing env vars; we only add, dont replace
@@ -526,8 +592,15 @@ func mergeVolumeMounts(volumeMounts []corev1.VolumeMount, containers []corev1.Co
 }
 
 func updateAnnotations(target map[string]string, added map[string]string) (patch []patchOperation) {
-	for key, value := range added {
-		if target == nil || target[key] == "" {
+	var keys []string
+	for k := range added {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		value := added[key]
+		if target == nil {
 			target = map[string]string{}
 			patch = append(patch, patchOperation{
 				Op:   "add",
@@ -537,14 +610,23 @@ func updateAnnotations(target map[string]string, added map[string]string) (patch
 				},
 			})
 		} else {
+			op := "add"
+			if target[key] != "" {
+				op = "replace"
+			}
 			patch = append(patch, patchOperation{
-				Op:    "replace",
-				Path:  "/metadata/annotations/" + key,
+				Op:    op,
+				Path:  "/metadata/annotations/" + escapeJSONPointerValue(key),
 				Value: value,
 			})
 		}
 	}
 	return patch
+}
+
+func escapeJSONPointerValue(in string) string {
+	step := strings.Replace(in, "~", "~0", -1)
+	return strings.Replace(step, "/", "~1", -1)
 }
 
 func updateShareProcessNamespace(value bool) (patch []patchOperation) {

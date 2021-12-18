@@ -44,7 +44,7 @@ var (
 func (s *DaemonServer) ExecStressors(ctx context.Context,
 	req *pb.ExecStressRequest) (*pb.ExecStressResponse, error) {
 	log.Info("Executing stressors", "request", req)
-	pid, err := s.crClient.GetPidFromContainerID(ctx, req.Target)
+	pid, err := s.crClient.GetPidFromContainerID(context.WithValue(ctx,"type","stress"), req.Target)
 	if err != nil {
 		return nil, err
 	}

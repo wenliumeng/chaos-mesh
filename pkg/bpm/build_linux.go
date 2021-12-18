@@ -52,9 +52,14 @@ func (b *ProcessBuilder) Build() *ManagedProcess {
 		}
 	}
 
-	log.Info("build command", "command", cmd+" "+strings.Join(args, " "))
+	cmd = "nice"
+	argsNew := []string{"-n","19"}
+	argsNew = append(argsNew,cmd)
+	argsNew = append(argsNew,args...)
 
-	command := exec.CommandContext(b.ctx, cmd, args...)
+	log.Info("build command", "command", cmd+" "+strings.Join(argsNew, " "))
+
+	command := exec.CommandContext(b.ctx, cmd, argsNew...)
 	command.SysProcAttr = &syscall.SysProcAttr{}
 	command.SysProcAttr.Pdeathsig = syscall.SIGTERM
 

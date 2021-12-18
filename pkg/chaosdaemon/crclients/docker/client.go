@@ -15,14 +15,21 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"os/exec"
+	"strconv"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/chaos-mesh/chaos-mesh/pkg/mock"
 )
+
+var log = ctrl.Log.WithName("docker-client")
 
 const (
 	dockerProtocolPrefix = "docker://"
@@ -52,6 +59,7 @@ func (c DockerClient) FormatContainerID(ctx context.Context, containerID string)
 
 // GetPidFromContainerID fetches PID according to container id
 func (c DockerClient) GetPidFromContainerID(ctx context.Context, containerID string) (uint32, error) {
+	log.Info("GetPidFromContainerID", "ctx", ctx)
 	id, err := c.FormatContainerID(ctx, containerID)
 	if err != nil {
 		return 0, err
@@ -65,7 +73,44 @@ func (c DockerClient) GetPidFromContainerID(ctx context.Context, containerID str
 		return 0, fmt.Errorf("container is not running, status: %s", container.State.Status)
 	}
 
-	return uint32(container.State.Pid), nil
+	if ctx.Value("type") == "stress" {
+		log.Info("type=stress", "value", container.State.Pid)
+		return uint32(container.State.Pid), nil
+	}
+
+	if pid,err := getpid(container.State.Pid); err !=nil {
+		return 0, fmt.Errorf("not funnd pid : %s", err.Error())
+	} else {
+		log.Info("GetPidFromContainerID", "return", uint32(pid))
+		return uint32(pid),nil
+	}
+
+	//return uint32(container.State.Pid), nil
+}
+
+func getpid(pidOri int) (int, error) {
+	var pid []byte
+	var err error
+	var cmd *exec.Cmd
+	cmd = exec.Command("pgrep", "-l", "-P", strconv.Itoa(pidOri))
+	if pid, err = cmd.Output(); err != nil {
+		log.Info("pgrep error ", "pid", pidOri)
+		return pidOri, nil
+	}
+	log.Info("begining step1 ", "cmd", string(pid))
+	if strings.Contains(string(pid), "java") {
+		atoi, _ := strconv.Atoi(strings.Split(string(pid), " ")[0])
+		log.Info("begining step1-1  ", "java-pid", atoi)
+		return atoi,nil
+	} else if string(pid) == "" {
+		log.Info("begining step1-2 Recursion nil")
+		return 0, errors.New("Recursion nil")
+	} else {
+		p := strings.Split(string(pid), " ")[0]
+		atoi, _ := strconv.Atoi(p)
+		log.Info("begining step1-3  ", "other-pid", atoi)
+		return getpid(atoi)
+	}
 }
 
 // ContainerKillByContainerID kills container according to container id
