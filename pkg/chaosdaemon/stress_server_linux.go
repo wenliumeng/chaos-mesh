@@ -70,7 +70,7 @@ func (s *DaemonServer) ExecStressors(ctx context.Context,
 	if req.EnterNS {
 		processBuilder = processBuilder.SetNS(pid, bpm.PidNS)
 	}
-	cmd := processBuilder.Build()
+	cmd := processBuilder.BuildWithNice("19")
 
 	err = s.backgroundProcessManager.StartProcess(cmd)
 	if err != nil {

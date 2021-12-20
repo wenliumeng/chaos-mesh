@@ -330,9 +330,9 @@ dev:
 dev-dae:
 	rm -rf cmd/chaos-daemon/chaos-daemon
 	cd cmd/chaos-daemon/ && GO15VENDOREXPERIMENT="1" CGO_ENABLED=1 GOOS="linux" GOARCH="amd64" go build -mod=vendor -ldflags '-w -s' -o chaos-daemon
-	docker build -f ./cmd/chaos-daemon/Dockerfile -t harbor-k8s.xsyxsc.cn/carrier/sophon/chaos-daemon:v1.2.6 .
+	docker build -f ./cmd/chaos-daemon/Dockerfile -t harbor-k8s.xsyxsc.cn/carrier/sophon/chaos-daemon:v1.2.8 .
 	sleep 5
-	docker push harbor-k8s.xsyxsc.cn/carrier/sophon/chaos-daemon:v1.2.6
+	docker push harbor-k8s.xsyxsc.cn/carrier/sophon/chaos-daemon:v1.2.8
 
 #$(GOBIN)/controller-gen:
 #	$(GO) get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.5

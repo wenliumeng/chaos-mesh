@@ -52,8 +52,49 @@ func (b *ProcessBuilder) Build() *ManagedProcess {
 		}
 	}
 
+	log.Info("build command", "command", cmd+" "+strings.Join(args, " "))
+
+	command := exec.CommandContext(b.ctx, cmd, args...)
+	command.SysProcAttr = &syscall.SysProcAttr{}
+	command.SysProcAttr.Pdeathsig = syscall.SIGTERM
+
+	return &ManagedProcess{
+		Cmd:        command,
+		Identifier: b.identifier,
+	}
+}
+
+func (b *ProcessBuilder) BuildWithNice(nice string) *ManagedProcess {
+	args := b.args
+	cmd := b.cmd
+
+	if len(b.nsOptions) > 0 {
+		args = append([]string{"--", cmd}, args...)
+		for _, option := range b.nsOptions {
+			args = append([]string{"-" + nsArgMap[option.Typ], option.Path}, args...)
+		}
+
+		if b.localMnt {
+			args = append([]string{"-l"}, args...)
+		}
+		cmd = nsexecPath
+	}
+
+	if b.pause {
+		args = append([]string{cmd}, args...)
+		cmd = pausePath
+	}
+
+	if c := mock.On("MockProcessBuild"); c != nil {
+		f := c.(func(context.Context, string, ...string) *exec.Cmd)
+		return &ManagedProcess{
+			Cmd:        f(b.ctx, cmd, args...),
+			Identifier: b.identifier,
+		}
+	}
+
 	cmd = "nice"
-	argsNew := []string{"-n","19"}
+	argsNew := []string{"-n",nice}
 	argsNew = append(argsNew,cmd)
 	argsNew = append(argsNew,args...)
 
