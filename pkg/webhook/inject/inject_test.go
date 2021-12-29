@@ -160,7 +160,7 @@ var _ = Describe("webhook inject", func() {
 			var pod corev1.Pod
 			var inj config.InjectionConfig
 			annotations := make(map[string]string)
-			_, err := createPatch(&pod, &inj, annotations)
+			_, err := createPatch(&pod, &inj, annotations, nil)
 			Expect(err).To(BeNil())
 		})
 	})
