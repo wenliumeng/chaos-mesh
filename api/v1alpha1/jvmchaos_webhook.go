@@ -120,7 +120,7 @@ func (in *JVMChaos) validateJvmChaos(spec *field.Path) field.ErrorList {
 			allErrs = append(allErrs, field.Invalid(targetField, in.Spec.Target, errorMsg))
 		}
 	} else {
-		allErrs = append(allErrs, field.Invalid(targetField, in.Spec.Target, "1unknown JVM chaos target"))
+		allErrs = append(allErrs, field.Invalid(targetField, in.Spec.Target, "unknown JVM chaos target"))
 	}
 
 	return allErrs
