@@ -86,6 +86,8 @@ const (
 	// JEDIS represents jedis (a java redis client) as a target of chaos
 	JEDIS JVMChaosTarget = "jedis"
 
+	LETTUCE JVMChaosTarget = "lettuce"
+
 	// HTTP represents http client as a target of chaos
 	HTTP JVMChaosTarget = "http"
 

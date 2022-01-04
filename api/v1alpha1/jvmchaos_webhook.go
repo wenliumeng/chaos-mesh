@@ -120,7 +120,7 @@ func (in *JVMChaos) validateJvmChaos(spec *field.Path) field.ErrorList {
 			allErrs = append(allErrs, field.Invalid(targetField, in.Spec.Target, errorMsg))
 		}
 	} else {
-		allErrs = append(allErrs, field.Invalid(targetField, in.Spec.Target, "unknown JVM chaos target"))
+		allErrs = append(allErrs, field.Invalid(targetField, in.Spec.Target, "1unknown JVM chaos target"))
 	}
 
 	return allErrs
@@ -274,6 +274,32 @@ var JvmSpec = map[JVMChaosTarget]map[JVMChaosAction]ActionParameterRules{
 		},
 	},
 	JEDIS: {
+		JVMDelayAction: ActionParameterRules{
+			Flags: []ParameterRules{
+				{Name: "time", ParameterType: IntType, Required: true},
+				{Name: "offset", ParameterType: IntType},
+			},
+			Matchers: []ParameterRules{
+				{Name: "effect-count", ParameterType: IntType},
+				{Name: "effect-percent", ParameterType: IntType},
+				{Name: "cmd"},
+				{Name: "key"},
+			},
+		},
+		JVMExceptionAction: ActionParameterRules{
+			Flags: []ParameterRules{
+				{Name: "exception", Required: true},
+				{Name: "exception-message"},
+			},
+			Matchers: []ParameterRules{
+				{Name: "effect-count", ParameterType: IntType},
+				{Name: "effect-percent", ParameterType: IntType},
+				{Name: "cmd"},
+				{Name: "key"},
+			},
+		},
+	},
+	LETTUCE: {
 		JVMDelayAction: ActionParameterRules{
 			Flags: []ParameterRules{
 				{Name: "time", ParameterType: IntType, Required: true},

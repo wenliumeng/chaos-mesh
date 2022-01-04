@@ -323,9 +323,9 @@ chaos-jvm:
 dev:
 	rm -rf cmd/chaos-controller-manager/chaos-controller-manager
 	cd cmd/chaos-controller-manager/ && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -ldflags '-w -s' -o chaos-controller-manager
-	docker build -f ./cmd/chaos-controller-manager/Dockerfile -t harbor-k8s.xsyxsc.cn/carrier/sophon/chaos-mesh:v1.2.25 .
+	docker build -f ./cmd/chaos-controller-manager/Dockerfile -t harbor-k8s.xsyxsc.cn/carrier/sophon/chaos-mesh:v1.2.26 .
 	sleep 5
-	docker push harbor-k8s.xsyxsc.cn/carrier/sophon/chaos-mesh:v1.2.25
+	docker push harbor-k8s.xsyxsc.cn/carrier/sophon/chaos-mesh:v1.2.26
 
 dev-dae:
 	rm -rf cmd/chaos-daemon/chaos-daemon
